@@ -21,7 +21,14 @@ run: $(BIN)
 report:
 	$(PY) tools/report.py out docs/report.html
 
+# 多 seed 回归：换随机激励再看违规/失配是否仍为 0、覆盖率是否仍收敛
+regress: $(BIN)
+	@mkdir -p out
+	@for sd in 0 1 7 42; do \
+		printf 'seed %-3s ' $$sd; ./$(BIN) --out out --seed $$sd --json; \
+	done
+
 clean:
 	rm -rf build out
 
-.PHONY: all build run report clean
+.PHONY: all build run report regress clean

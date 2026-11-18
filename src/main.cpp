@@ -59,6 +59,10 @@ struct PRow {
 };
 
 static int g_dirViol = 0, g_dirMis = 0, g_dirTxns = 0;
+// 种子偏移：--seed 会在这里叠加，让同一套激励在不同种子下重新随机，
+// 但定向段和 bug 注入段保持固定 —— 那两段要的是可复现，不是随机。
+static uint64_t g_seedOff = 0;
+static uint64_t seeded(uint64_t base) { return base ^ (g_seedOff * 0x9E3779B97F4A7C15ull); }
 
 static std::vector<Row>  g_wave;
 static std::vector<PRow> g_pwave;
@@ -97,7 +101,7 @@ struct AxiResult {
 
 static AxiResult runAxi(const AxiMaster::Cfg& mcfg, const SlaveCfg& scfg,
                         int maxCycles, Coverage* cov, int waveStart = -1, int waveLen = 0) {
-    Rng rng(0xA5A5F00Dull);
+    Rng rng(seeded(0xA5A5F00Dull));
     AxiMaster mst;
     AxiMemSlave slv;
     Checker chk;
@@ -179,7 +183,7 @@ struct ApbResult {
 
 static ApbResult runApb(const AxiMaster::Cfg& mcfg, const BridgeCfg& bcfg, const ApbCfg& acfg,
                         int maxCycles, Coverage* cov, int waveStart = -1, int waveLen = 0) {
-    Rng rng(0x5EED1234ull);
+    Rng rng(seeded(0x5EED1234ull));
     AxiMaster mst;
     Axi2ApbBridge br;
     ApbRegSlave  reg;
@@ -279,6 +283,7 @@ int main(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--json") == 0) jsonOnly = true;
         else if (strcmp(argv[i], "--out") == 0 && i + 1 < argc) outdir = argv[++i];
+        else if (strcmp(argv[i], "--seed") == 0 && i + 1 < argc) g_seedOff = (uint64_t)strtoull(argv[++i], nullptr, 10);
     }
     ensure_dir(outdir);
 
@@ -471,6 +476,8 @@ int main(int argc, char** argv) {
 
     if (!jsonOnly) {
         printf("axi-vip - AXI4 / APB 协议验证平台\n");
+        printf("随机种子偏移：%llu%s\n", (unsigned long long)g_seedOff,
+               g_seedOff ? "" : "（默认）");
         printf("周期级模型，无 EDA 依赖；checker / scoreboard / coverage 全部只看总线\n\n");
 
         printf("[1] AXI4 内存从设备 · 约束随机\n");
