@@ -1,4 +1,6 @@
 #include "dv.h"
+#include <cerrno>
+#include <cstdlib>
 #include <string>
 #include <vector>
 
@@ -283,7 +285,24 @@ int main(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--json") == 0) jsonOnly = true;
         else if (strcmp(argv[i], "--out") == 0 && i + 1 < argc) outdir = argv[++i];
-        else if (strcmp(argv[i], "--seed") == 0 && i + 1 < argc) g_seedOff = (uint64_t)strtoull(argv[++i], nullptr, 10);
+        else if (strcmp(argv[i], "--seed") == 0) {
+            // --seed 必须真的改变种子：以前缺参数或写错（abс/空变量）会被静默忽略，
+            // 于是"4 个种子各跑一遍都过"其实是同一个种子跑了 4 次，等于假回归
+            if (i + 1 >= argc) {
+                fprintf(stderr, "error: --seed 需要一个非负整数\n");
+                fprintf(stderr, "usage: axi_vip [--out dir] [--json] [--seed N]\n");
+                return 2;
+            }
+            const char* s = argv[++i];
+            char* end = nullptr;
+            errno = 0;
+            unsigned long long v = strtoull(s, &end, 10);
+            if (end == s || *end != '\0' || s[0] == '-' || errno == ERANGE) {
+                fprintf(stderr, "error: --seed 需要一个非负整数（当前 \"%s\"）\n", s);
+                return 2;
+            }
+            g_seedOff = (uint64_t)v;
+        }
     }
     ensure_dir(outdir);
 

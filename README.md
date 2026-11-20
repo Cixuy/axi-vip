@@ -126,6 +126,10 @@ python tools/report.py out docs/report.html
 `--json` 只打印一行汇总，方便接 CI；`--verbose` 会多打首条违规/首次失配的细节；
 `--seed N` 换随机种子（定向段与 bug 注入段保持固定，那两段要的是可复现）。
 
+`N` 必须是非负整数：`--seed` 后面缺参数、写成 `abc` 或负数，会打印
+`error: --seed 需要一个非负整数` 并退 2。这条校验是为多 seed 回归加的保护——
+旧实现里参数写错会被静默忽略，`make regress` 看上去"4 个种子全过"，其实是同一个种子跑了 4 次。
+
 ```bash
 make regress        # 4 个种子各跑一遍，看违规/失配是否仍为 0、覆盖率是否仍 100%
 ```
