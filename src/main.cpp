@@ -283,9 +283,21 @@ int main(int argc, char** argv) {
     const char* outdir = "out";
     bool jsonOnly = false;
     for (int i = 1; i < argc; ++i) {
-        if (strcmp(argv[i], "--json") == 0) jsonOnly = true;
-        else if (strcmp(argv[i], "--out") == 0 && i + 1 < argc) outdir = argv[++i];
-        else if (strcmp(argv[i], "--seed") == 0) {
+        const char* a = argv[i];
+        if (strcmp(a, "--json") == 0) { jsonOnly = true; continue; }
+        // --dbg / --verbose 在后面单独扫一遍，这里只放行
+        if (strcmp(a, "--dbg") == 0 || strcmp(a, "--verbose") == 0) continue;
+        if (strcmp(a, "--out") == 0) {
+            // 缺参数时不能静默落回默认 out：脚本里 `--out $DIR` 变量为空会写进当前目录还不报错
+            if (i + 1 >= argc || argv[i + 1][0] == '-' || argv[i + 1][0] == '\0') {
+                fprintf(stderr, "error: --out 需要一个目录路径\n");
+                fprintf(stderr, "usage: axi_vip [--out dir] [--json] [--seed N] [--dbg] [--verbose]\n");
+                return 2;
+            }
+            outdir = argv[++i];
+            continue;
+        }
+        if (strcmp(a, "--seed") == 0) {
             // --seed 必须真的改变种子：以前缺参数或写错（abс/空变量）会被静默忽略，
             // 于是"4 个种子各跑一遍都过"其实是同一个种子跑了 4 次，等于假回归
             if (i + 1 >= argc) {
@@ -302,7 +314,20 @@ int main(int argc, char** argv) {
                 return 2;
             }
             g_seedOff = (uint64_t)v;
+            continue;
         }
+        if (strcmp(a, "--help") == 0 || strcmp(a, "-h") == 0) {
+            printf("usage: axi_vip [--out dir] [--json] [--seed N] [--dbg] [--verbose]\n"
+                   "  --out dir  波形/汇总输出目录（默认 out）\n"
+                   "  --json     只输出一行 JSON 汇总，便于 CI 断言\n"
+                   "  --seed N   叠加种子偏移，换种子重新随机（不影响定向段与 bug 注入段）\n");
+            return 0;
+        }
+        // 拼错的选项（--jsno）以前被静默忽略，等于跑了一遍默认回归还退 0，CI 看着是绿的
+        fprintf(stderr, "error: %s \"%s\"\n",
+                a[0] == '-' ? "未知选项" : "多余的参数", a);
+        fprintf(stderr, "usage: axi_vip [--out dir] [--json] [--seed N] [--dbg] [--verbose]\n");
+        return 2;
     }
     ensure_dir(outdir);
 
