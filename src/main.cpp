@@ -506,6 +506,11 @@ int main(int argc, char** argv) {
     tryBug("APB 未应答就撤 PSEL",   "bridge.bugPselDrop",    "APB-SETUP",        scfg, bPS, ApbCfg());
     tryBug("APB 未 PENABLE 就 PREADY","slave.bugPreadyNoEnable","APB-PREADY",    scfg, BridgeCfg(), aPN);
 
+    // checker 自检：注入的 6 个 bug 全都必须被检出，漏一个说明对应断言失效了。
+    // 以前这里只打印表格，"未检出"也是退 0 —— checker 被改坏、回归全绿，最危险的一种假通过。
+    int bugsMissed = 0;
+    for (auto& b : bugs) if (b.caughtCycle < 0) ++bugsMissed;
+
     // ---- 输出 ----
     if (jsonOnly) {
         printf("{\"writes\":%d,\"reads\":%d,\"cycles\":%d,\"violations\":%d,\"mismatches\":%d,"
@@ -571,6 +576,9 @@ int main(int argc, char** argv) {
             printf("    "); pad(b.name, 26); pad(b.where, 26); pad(cyc, 10);
             pad(b.rule.c_str(), 18); printf("%d 处\n", b.count);
         }
+        printf("    checker 自检：%d/%d 个注入 bug 被检出%s\n",
+               (int)bugs.size() - bugsMissed, (int)bugs.size(),
+               bugsMissed ? "   ← 有断言失效，务必看上面「未检出」那一行" : "");
         printf("\n");
     }
 
@@ -626,5 +634,15 @@ int main(int argc, char** argv) {
     fprintf(f, "]\n}\n");
     fclose(f);
     if (!jsonOnly) printf("trace 已写入 %s/report.json\n", outdir);
+
+    // 退出码：以前无论如何都 return 0，协议违规 / scoreboard 失配 / checker 漏检
+    // 都只是打印一行，CI 里照样是绿的。这些恰恰是回归唯一该看的东西。
+    const int violTotal = r1.violations + r3.violations + r3d.violations + g_dirViol;
+    const int misTotal  = r1.mismatches + g_dirMis;
+    if (violTotal || misTotal || bugsMissed) {
+        fprintf(stderr, "FAIL: 协议违规 %d，scoreboard 失配 %d，checker 漏检 %d/%d\n",
+                violTotal, misTotal, bugsMissed, (int)bugs.size());
+        return 1;
+    }
     return 0;
 }

@@ -126,6 +126,11 @@ python tools/report.py out docs/report.html
 `--json` 只打印一行汇总，方便接 CI；`--verbose` 会多打首条违规/首次失配的细节；
 `--seed N` 换随机种子（定向段与 bug 注入段保持固定，那两段要的是可复现）。
 
+**退出码就是结论**：协议违规、scoreboard 失配、以及 6 个注入 bug 里任何一个「未检出」，
+都会在 stderr 打一行 `FAIL: 协议违规 A，scoreboard 失配 B，checker 漏检 C/6` 并退 1；
+全清才退 0。旧实现无论如何都退 0，"未检出"也只是表格里一格字，checker 被改坏时回归照样是绿的。
+（负例：把从设备的读数据临时异或一位 → `失配 73` 退 1；还原后 `violations 0 / mismatches 0` 退 0。）
+
 `N` 必须是非负整数：`--seed` 后面缺参数、写成 `abc` 或负数，会打印
 `error: --seed 需要一个非负整数` 并退 2。这条校验是为多 seed 回归加的保护——
 旧实现里参数写错会被静默忽略，`make regress` 看上去"4 个种子全过"，其实是同一个种子跑了 4 次。
